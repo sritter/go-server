@@ -1,0 +1,8 @@
+GET http://localhost:8080/albums/2
+Accept: application/json
+
+###
+### GET request to example server
+GET http://localhost:8080/albums
+
+###
