@@ -1,146 +1,66 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-	"io/ioutil"
-	"log"
+	//"fmt"
+	"github.com/gin-gonic/gin"
+	//"log"
 	"net/http"
-	"strconv"
-	"sync"
 )
 
-type Post struct {
-	ID   int    `json:"id"`
-	Body string `json:"body"`
+type album struct {
+	ID     string  `json:"id"`
+	Title  string  `json:"title"`
+	Artist string  `json:"artist"`
+	Price  float64 `json:"price"`
 }
 
-var (
-	posts   = make(map[int]Post)
-	nextID  = 1
-	postsMu sync.Mutex
-)
+var albums = []album{
+	{ID: "1", Title: "Blue Train", Artist: "John Coltrane", Price: 56.99},
+	{ID: "2", Title: "Jeru", Artist: "Gerry Mulligan", Price: 17.99},
+	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
+}
 
 func main() {
-	http.HandleFunc("/posts", postsHandler)
-	http.HandleFunc("/posts/", postHandler)
+	router := gin.Default()
+	router.GET("/albums", getAlbums)
+	router.GET("/albums/:id", getAlbumByID)
+	router.POST("/albums", postAlbums)
 
-	fmt.Println("Server is running at http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	router.Run("localhost:8080")
 }
 
-func postsHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case "GET":
-		handleGetPosts(w, r)
-	case "POST":
-		handlePostPosts(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
+// postAlbums adds an album from JSON received in the request body.
+func postAlbums(c *gin.Context) {
+	var newAlbum album
 
-func postHandler(w http.ResponseWriter, r *http.Request) {
-	id, err := strconv.Atoi(r.URL.Path[len("/posts/"):])
-	if err != nil {
-		http.Error(w, "Invalid post ID", http.StatusBadRequest)
+	// Call BindJSON to bind the received JSON to
+	// newAlbum.
+	if err := c.BindJSON(&newAlbum); err != nil {
 		return
 	}
 
-	switch r.Method {
-	case "GET":
-		handleGetPost(w, r, id)
-	case "DELETE":
-		handleDeletePost(w, r, id)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
+	// Add the new album to the slice.
+	albums = append(albums, newAlbum)
+	c.IndentedJSON(http.StatusCreated, newAlbum)
 }
 
-func handleGetPosts(w http.ResponseWriter, r *http.Request) {
-	// This is the first time we're using the mutex.
-	// It essentially locks the server so that we can
-	// manipulate the posts map without worrying about
-	// another request trying to do the same thing at
-	// the same time.
-	postsMu.Lock()
-
-	// I love this feature of go - we can defer the
-	// unlocking until the function has finished executing,
-	// but define it up the top with our lock. Nice and neat.
-	// Caution: deferred statements are first-in-last-out,
-	// which is not all that intuitive to begin with.
-	defer postsMu.Unlock()
-
-	// Copying the posts to a new slice of type []Post
-	ps := make([]Post, 0, len(posts))
-	for _, p := range posts {
-		ps = append(ps, p)
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ps)
+// return a list of all albums
+func getAlbums(c *gin.Context) {
+	c.IndentedJSON(http.StatusOK, albums)
 }
 
-func handlePostPosts(w http.ResponseWriter, r *http.Request) {
-	var p Post
+// getAlbumByID locates the album whose ID value matches the id
+// parameter sent by the client, then returns that album as a response.
+func getAlbumByID(c *gin.Context) {
+	id := c.Param("id")
 
-	// This will read the entire body into a byte slice
-	// i.e. ([]byte)
-	body, err := ioutil.ReadAll(r.Body)
-	if err != nil {
-		http.Error(w, "Error reading request body", http.StatusInternalServerError)
-		return
+	// Loop over the list of albums, looking for
+	// an album whose ID value matches the parameter.
+	for _, a := range albums {
+		if a.ID == id {
+			c.IndentedJSON(http.StatusOK, a)
+			return
+		}
 	}
-
-	// Now we'll try to parse the body. This is similar
-	// to JSON.parse in JavaScript.
-	if err := json.Unmarshal(body, &p); err != nil {
-		http.Error(w, "Error parsing request body", http.StatusBadRequest)
-		return
-	}
-
-	// As we're going to mutate the posts map, we need to
-	// lock the server again
-	postsMu.Lock()
-	defer postsMu.Unlock()
-
-	p.ID = nextID
-	nextID++
-	posts[p.ID] = p
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(p)
-}
-
-func handleGetPost(w http.ResponseWriter, r *http.Request, id int) {
-	postsMu.Lock()
-	defer postsMu.Unlock()
-
-	p, ok := posts[id]
-	if !ok {
-		http.Error(w, "Post not found", http.StatusNotFound)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(p)
-}
-
-func handleDeletePost(w http.ResponseWriter, r *http.Request, id int) {
-	postsMu.Lock()
-	defer postsMu.Unlock()
-
-	// If you use a two-value assignment for accessing a
-	// value on a map, you get the value first then an
-	// "exists" variable.
-	_, ok := posts[id]
-	if !ok {
-		http.Error(w, "Post not found", http.StatusNotFound)
-		return
-	}
-
-	delete(posts, id)
-	w.WriteHeader(http.StatusOK)
+	c.IndentedJSON(http.StatusNotFound, gin.H{"message": "album not found"})
 }

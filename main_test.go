@@ -3,81 +3,98 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/gin-gonic/gin"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
+	"reflect"
 	"testing"
 )
 
-func TestHandleGetPosts(t *testing.T) {
-	// Setup
-	req, err := http.NewRequest("GET", "/posts", nil)
+func SetUpRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.Default()
+	return router
+}
+
+func TestGetAllAlbums(t *testing.T) {
+	r := SetUpRouter()
+	r.GET("/albums", getAlbums)
+
+	req, err := http.NewRequest("GET", "/albums", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(postsHandler)
 
-	// Execute
-	handler.ServeHTTP(rr, req)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-	// Assert
-	status := rr.Code
-	if status != http.StatusOK {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusOK)
+	var rcvd []album
+	json.Unmarshal(w.Body.Bytes(), &rcvd)
+
+	if status := w.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: wanted %v got %v",
+			status, http.StatusOK)
 	}
 
-	expected := "[]\n" // Expect an empty JSON array
-	if rr.Body.String() != expected {
-		t.Errorf("handler returned unexpected body: got %v want %v", rr.Body.String(), expected)
+	if !reflect.DeepEqual(rcvd, albums) {
+		t.Fatalf("handler return unexpected body: got %v want %v",
+			rcvd, albums)
 	}
 }
 
-func TestHandlePostAndDeletePosts(t *testing.T) {
-	// Create a new post
-	post := &Post{
-		Body: "Test post",
-	}
-	postBody, _ := json.Marshal(post)
-	req, err := http.NewRequest("POST", "/posts", bytes.NewBuffer(postBody))
+func TestGetSingleAlbum(t *testing.T) {
+	r := SetUpRouter()
+	r.GET("/albums/:id", getAlbumByID)
+
+	req, err := http.NewRequest("GET", "/albums/2", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(postsHandler)
 
-	// Execute
-	handler.ServeHTTP(rr, req)
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-	// Assert POST
-	status := rr.Code
-	if status != http.StatusCreated {
-		t.Errorf("handler returned wrong status code: got %v want %v", status, http.StatusCreated)
+	var rcvd album
+	json.Unmarshal(w.Body.Bytes(), &rcvd)
+	if status := w.Code; status != http.StatusOK {
+		t.Fatalf("handler returned wrong status code: wanted %v got %v",
+			http.StatusOK, status)
+	}
+	if albums[1] != rcvd {
+		t.Fatalf("handler return unexpected body: got %v want %v",
+			rcvd, albums[1])
+	}
+}
+
+func TestPostAlbum(t *testing.T) {
+	r := SetUpRouter()
+	r.POST("/albums", postAlbums)
+	originalAlbumsLen := len(albums)
+
+	var newAlbum = album{
+		ID:     "4",
+		Title:  "Next Level Foo",
+		Artist: "The Bars",
+		Price:  999.99,
 	}
 
-	// Decode the response to get the post ID
-	var newPost Post
-	if err := json.NewDecoder(rr.Body).Decode(&newPost); err != nil {
-		t.Fatal(err)
-	}
-	if newPost.Body != post.Body {
-		t.Errorf("handler returned unexpected body: got %v want %v", newPost.Body, post.Body)
+	jsonData, error := json.Marshal(newAlbum)
+	if error != nil {
+		t.Fatal(error)
 	}
 
-	// Delete the post
-	req, err = http.NewRequest("DELETE", "/posts/"+strconv.Itoa(newPost.ID), nil)
+	req, err := http.NewRequest("POST", "/albums", bytes.NewBuffer(jsonData))
 	if err != nil {
 		t.Fatal(err)
 	}
-	rr = httptest.NewRecorder()
+	w := httptest.NewRecorder()
+	r.ServeHTTP(w, req)
 
-	// Execute
-	handler = http.HandlerFunc(postHandler)
-	handler.ServeHTTP(rr, req)
+	if len(albums) != originalAlbumsLen+1 {
+		t.Fatal("Something went wrong: new album not added")
+	}
 
-	// Assert DELETE
-	status = rr.Code
-	if status != http.StatusOK {
-		t.Errorf("handler returned wrong status code for delete: got %v want %v", status, http.StatusOK)
+	if albums[originalAlbumsLen] != newAlbum {
+		t.Fatalf("expected new album to equal %v", newAlbum)
 	}
 }
