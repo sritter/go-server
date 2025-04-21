@@ -4,6 +4,10 @@ import (
 	//"fmt"
 	"github.com/gin-gonic/gin"
 	//"log"
+	//docs "github.com/sritter/go-server/docs"
+	swaggerfiles "github.com/swaggo/files"
+	ginSwagger "github.com/swaggo/gin-swagger"
+	//_ "go-server/docs"
 	"net/http"
 )
 
@@ -20,16 +24,38 @@ var albums = []album{
 	{ID: "3", Title: "Sarah Vaughan and Clifford Brown", Artist: "Sarah Vaughan", Price: 39.99},
 }
 
+// @title Albums API
+// @version 0.0.1
+// @description.markdown
+// @BasePath /api/v1
 func main() {
 	router := gin.Default()
-	router.GET("/albums", getAlbums)
-	router.GET("/albums/:id", getAlbumByID)
-	router.POST("/albums", postAlbums)
+
+	v1 := router.Group("/api/v1")
+	{
+		eg := v1.Group("/example")
+		{
+			eg.GET("/albums", getAlbums)
+			eg.GET("/albums/:id", getAlbumByID)
+			eg.POST("/albums", postAlbums)
+		}
+	}
+	ginSwagger.WrapHandler(swaggerfiles.Handler,
+		ginSwagger.URL("http://localhost:8080/swagger/doc.json"),
+		ginSwagger.DefaultModelsExpandDepth(-1))
+
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	router.Run(":8080")
 }
 
 // postAlbums adds an album from JSON received in the request body.
+// @Summary Add an album
+// @Tags albums
+// @Accept json
+// @Produce json
+// @Success 201
+// @Router /albums  [post]
 func postAlbums(c *gin.Context) {
 	var newAlbum album
 
@@ -45,12 +71,22 @@ func postAlbums(c *gin.Context) {
 }
 
 // return a list of all albums
+// @Summary Return all albums
+// @Tags albums
+// @Produce json
+// @Success 200
+// @Router /albums [get]
 func getAlbums(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, albums)
 }
 
 // getAlbumByID locates the album whose ID value matches the id
 // parameter sent by the client, then returns that album as a response.
+// @Summary Get a single album
+// @Tags albums
+// @Produce json
+// @Success 200
+// @Router /albums/:id  [get]
 func getAlbumByID(c *gin.Context) {
 	id := c.Param("id")
 
