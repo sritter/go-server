@@ -1,19 +1,43 @@
-FROM golang:1.24.2-alpine AS builder
+# Build stage
+FROM golang:1.21-alpine AS builder
 
-RUN go install github.com/swaggo/swag/cmd/swag@v1.16.4
+# Install git and swag
+RUN apk add --no-cache git && \
+    go install github.com/swaggo/swag/cmd/swag@latest
 
 WORKDIR /app
-COPY go.mod go.sum ./
+
+# Copy go mod files
+COPY go.mod ./
 RUN go mod download
+
+# Copy source code
 COPY . .
 
-RUN go list &&\
-    go test &&\
-#    swag init &&\
-    GOOS=linux go build -o go-server
-#RUN swag init
+# Run go mod tidy to ensure all dependencies are properly downloaded
+RUN go mod tidy
 
-#RUN go build -o go-server
+# Generate swagger docs
+RUN swag init
 
+RUN ls */**
 
-CMD ["/app/go-server"]
+#RUN go test ./... -v
+
+# Build the application
+RUN CGO_ENABLED=0 GOOS=linux go build -o main .
+
+# Final stage
+FROM alpine:3.19
+
+WORKDIR /app
+
+# Copy the binary from builder
+COPY --from=builder /app/main .
+COPY --from=builder /app/docs ./docs
+
+# Expose port
+EXPOSE 8080
+
+# Run the application
+CMD ["./main"]
