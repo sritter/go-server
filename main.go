@@ -1,7 +1,7 @@
 package main
 
 import (
-	"go-service/albums"
+	"go-server/albums"
 )
 
 func main() {
