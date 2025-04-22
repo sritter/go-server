@@ -1,9 +1,10 @@
-package main
+package albums
 
 import (
 	"bytes"
 	"encoding/json"
 	"github.com/gin-gonic/gin"
+	"go-server"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -18,7 +19,7 @@ func SetUpRouter() *gin.Engine {
 
 func TestGetAllAlbums(t *testing.T) {
 	r := SetUpRouter()
-	r.GET("/albums", getAlbums)
+	r.GET("/albums", main.getAlbums)
 
 	req, err := http.NewRequest("GET", "/albums", nil)
 	if err != nil {
@@ -28,7 +29,7 @@ func TestGetAllAlbums(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	var rcvd []album
+	var rcvd []main.album
 	json.Unmarshal(w.Body.Bytes(), &rcvd)
 
 	if status := w.Code; status != http.StatusOK {
@@ -36,15 +37,15 @@ func TestGetAllAlbums(t *testing.T) {
 			status, http.StatusOK)
 	}
 
-	if !reflect.DeepEqual(rcvd, albums) {
+	if !reflect.DeepEqual(rcvd, main.albums) {
 		t.Fatalf("handler return unexpected body: got %v want %v",
-			rcvd, albums)
+			rcvd, main.albums)
 	}
 }
 
 func TestGetSingleAlbum(t *testing.T) {
 	r := SetUpRouter()
-	r.GET("/albums/:id", getAlbumByID)
+	r.GET("/albums/:id", main.getAlbumByID)
 
 	req, err := http.NewRequest("GET", "/albums/2", nil)
 	if err != nil {
@@ -54,24 +55,24 @@ func TestGetSingleAlbum(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	var rcvd album
+	var rcvd main.album
 	json.Unmarshal(w.Body.Bytes(), &rcvd)
 	if status := w.Code; status != http.StatusOK {
 		t.Fatalf("handler returned wrong status code: wanted %v got %v",
 			http.StatusOK, status)
 	}
-	if albums[1] != rcvd {
+	if main.albums[1] != rcvd {
 		t.Fatalf("handler return unexpected body: got %v want %v",
-			rcvd, albums[1])
+			rcvd, main.albums[1])
 	}
 }
 
 func TestPostAlbum(t *testing.T) {
 	r := SetUpRouter()
-	r.POST("/albums", postAlbums)
-	originalAlbumsLen := len(albums)
+	r.POST("/albums", main.postAlbums)
+	originalAlbumsLen := len(main.albums)
 
-	var newAlbum = album{
+	var newAlbum = main.album{
 		ID:     "4",
 		Title:  "Next Level Foo",
 		Artist: "The Bars",
@@ -90,11 +91,11 @@ func TestPostAlbum(t *testing.T) {
 	w := httptest.NewRecorder()
 	r.ServeHTTP(w, req)
 
-	if len(albums) != originalAlbumsLen+1 {
+	if len(main.albums) != originalAlbumsLen+1 {
 		t.Fatal("Something went wrong: new album not added")
 	}
 
-	if albums[originalAlbumsLen] != newAlbum {
+	if main.albums[originalAlbumsLen] != newAlbum {
 		t.Fatalf("expected new album to equal %v", newAlbum)
 	}
 }
