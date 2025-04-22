@@ -11,3 +11,8 @@ I then startd to work on Web api to see how this works.  Found "gin" which seems
 ```
 docker build -t go-server:latest .
 ```
+
+ * Running on local
+```
+docker run -p 8080:8080 go-server:latest
+```
